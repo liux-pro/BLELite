@@ -16,6 +16,7 @@
 //#include "devinfoservice.h"
 #include "gattprofile.h"
 #include "peripheral.h"
+#include "app.h"
 
 /*********************************************************************
  * MACROS
@@ -25,8 +26,8 @@
  * CONSTANTS
  */
 
-// How often to perform periodic event
-#define SBP_PERIODIC_EVT_PERIOD              1600
+//// How often to perform periodic event
+//#define SBP_PERIODIC_EVT_PERIOD              1600
 
 // How often to perform read rssi event
 #define SBP_READ_RSSI_EVT_PERIOD             3200
@@ -41,11 +42,12 @@
 // General discoverable mode advertises indefinitely
 #define DEFAULT_DISCOVERABLE_MODE            GAP_ADTYPE_FLAGS_GENERAL
 
+//http://www.wch.cn/bbs/thread-86278-1.html 调通讯间隔时间
 // Minimum connection interval (units of 1.25ms, 20=25ms)
-#define DEFAULT_DESIRED_MIN_CONN_INTERVAL    20
+#define DEFAULT_DESIRED_MIN_CONN_INTERVAL    1
 
 // Maximum connection interval (units of 1.25ms, 100=125ms)
-#define DEFAULT_DESIRED_MAX_CONN_INTERVAL    100
+#define DEFAULT_DESIRED_MAX_CONN_INTERVAL    10
 
 // Slave latency to use parameter update
 #define DEFAULT_DESIRED_SLAVE_LATENCY        0
@@ -78,20 +80,20 @@
 static uint8_t Peripheral_TaskID = INVALID_TASK_ID; // Task ID for internal task/event processing
 
 // GAP - SCAN RSP data (max size = 31 bytes)
-static uint8_t scanRspData[] = {
-    // complete name
-    11, // length of this data
-    GAP_ADTYPE_LOCAL_NAME_COMPLETE,
-    'S',
-    'u',
-    'p',
-    'e',
-    'r',
-    'C',
-    'l',
-    'o',
-    'c',
-    'k',
+//static uint8_t scanRspData[] = {
+//    // complete name
+//    11, // length of this data
+//    GAP_ADTYPE_LOCAL_NAME_COMPLETE,
+//    'S',
+//    'u',
+//    'p',
+//    'e',
+//    'r',
+//    'C',
+//    'l',
+//    'o',
+//    'c',
+//    'k',
 //    // connection interval range
 //    0x05, // length of this data
 //    GAP_ADTYPE_SLAVE_CONN_INTERVAL_RANGE,
@@ -104,7 +106,7 @@ static uint8_t scanRspData[] = {
 //    0x02, // length of this data
 //    GAP_ADTYPE_POWER_LEVEL,
 //    0 // 0dBm
-};
+//};
 
 //这个会被改掉。
 // GAP - Advertisement data (max size = 31 bytes, though this is
@@ -116,7 +118,10 @@ static uint8_t advertData[] = {
     0x02, // length of this data
     GAP_ADTYPE_FLAGS,
     GAP_ADTYPE_FLAGS_GENERAL | GAP_ADTYPE_FLAGS_BREDR_NOT_SUPPORTED,
-
+    3,   //0xBABE
+    GAP_ADTYPE_MANUFACTURER_SPECIFIC,  //类型是厂商信息
+    COMPANY_ID_LOW,
+    COMPANY_ID_HIGH
 
 //    // service UUID, to notify central devices what services are included
 //    // in this peripheral
@@ -137,13 +142,13 @@ static peripheralConnItem_t peripheralConnList;
  */
 static void Peripheral_ProcessTMOSMsg(tmos_event_hdr_t *pMsg);
 static void peripheralStateNotificationCB(gapRole_States_t newState, gapRoleEvent_t *pEvent);
-static void performPeriodicTask(void);
+//static void performPeriodicTask(void);
 static void simpleProfileChangeCB(uint8_t paramID);
 static void peripheralParamUpdateCB(uint16_t connHandle, uint16_t connInterval,
                                     uint16_t connSlaveLatency, uint16_t connTimeout);
 static void peripheralInitConnItem(peripheralConnItem_t *peripheralConnList);
 static void peripheralRssiCB(uint16_t connHandle, int8_t rssi);
-static void peripheralChar4Notify(uint8_t *pValue, uint16_t len);
+void peripheralChar1Notify(uint8_t *pValue, uint16_t len);
 
 /*********************************************************************
  * PROFILE CALLBACKS
@@ -195,7 +200,7 @@ void Peripheral_Init()
 
         // Set the GAP Role Parameters
         GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &initial_advertising_enable);
-        GAPRole_SetParameter(GAPROLE_SCAN_RSP_DATA, sizeof(scanRspData), scanRspData);
+//        GAPRole_SetParameter(GAPROLE_SCAN_RSP_DATA, sizeof(scanRspData), scanRspData);
         GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
         GAPRole_SetParameter(GAPROLE_MIN_CONN_INTERVAL, sizeof(uint16_t), &desired_min_interval);
         GAPRole_SetParameter(GAPROLE_MAX_CONN_INTERVAL, sizeof(uint16_t), &desired_max_interval);
@@ -313,17 +318,17 @@ uint16_t Peripheral_ProcessEvent(uint8_t task_id, uint16_t events)
         return (events ^ SBP_START_DEVICE_EVT);
     }
 
-    if(events & SBP_PERIODIC_EVT)
-    {
-        // Restart timer
-        if(SBP_PERIODIC_EVT_PERIOD)
-        {
-            tmos_start_task(Peripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD);
-        }
-        // Perform periodic application task
-        performPeriodicTask();
-        return (events ^ SBP_PERIODIC_EVT);
-    }
+//    if(events & SBP_PERIODIC_EVT)
+//    {
+//        // Restart timer
+//        if(SBP_PERIODIC_EVT_PERIOD)
+//        {
+//            tmos_start_task(Peripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD);
+//        }
+//        // Perform periodic application task
+//        performPeriodicTask();
+//        return (events ^ SBP_PERIODIC_EVT);
+//    }
 
     if(events & SBP_PARAM_UPDATE_EVT)
     {
@@ -394,7 +399,7 @@ static void Peripheral_LinkEstablished(gapRoleEvent_t *pEvent)
         peripheralConnList.connTimeout = event->connTimeout;
 
         // Set timer for periodic event
-        tmos_start_task(Peripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD);
+//        tmos_start_task(Peripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD);
 
         // Set timer for param update event
         tmos_start_task(Peripheral_TaskID, SBP_PARAM_UPDATE_EVT, SBP_PARAM_UPDATE_DELAY);
@@ -402,7 +407,7 @@ static void Peripheral_LinkEstablished(gapRoleEvent_t *pEvent)
         // Start read rssi
         tmos_start_task(Peripheral_TaskID, SBP_READ_RSSI_EVT, SBP_READ_RSSI_EVT_PERIOD);
 
-        printf("Conn %x - Int %x \n", event->connectionHandle, event->connInterval);
+        PRINT("Conn %x - Int %x \n", event->connectionHandle, event->connInterval);
     }
 }
 
@@ -425,8 +430,10 @@ static void Peripheral_LinkTerminated(gapRoleEvent_t *pEvent)
         peripheralConnList.connInterval = 0;
         peripheralConnList.connSlaveLatency = 0;
         peripheralConnList.connTimeout = 0;
-        tmos_stop_task(Peripheral_TaskID, SBP_PERIODIC_EVT);
-        tmos_stop_task(Peripheral_TaskID, SBP_READ_RSSI_EVT);
+        //关掉notify的任务
+//        tmos_stop_task(Peripheral_TaskID, SBP_PERIODIC_EVT);
+        //关掉打印rssi的任务
+//        tmos_stop_task(Peripheral_TaskID, SBP_READ_RSSI_EVT);
 
         // Restart advertising
         {
@@ -476,7 +483,7 @@ static void peripheralParamUpdateCB(uint16_t connHandle, uint16_t connInterval,
         peripheralConnList.connSlaveLatency = connSlaveLatency;
         peripheralConnList.connTimeout = connTimeout;
 
-        printf("Update %x - Int %x \n", connHandle, connInterval);
+        PRINT("Update %x - Int %x \n", connHandle, connInterval);
     }
     else
     {
@@ -557,14 +564,14 @@ static void peripheralStateNotificationCB(gapRole_States_t newState, gapRoleEven
  *
  * @return  none
  */
-static void performPeriodicTask(void)
-{
-    uint8_t notiData[SIMPLEPROFILE_CHAR4_LEN] = {0x88};
-    peripheralChar4Notify(notiData, SIMPLEPROFILE_CHAR4_LEN);
-}
+//static void performPeriodicTask(void)
+//{
+//    uint8_t notiData[SIMPLEPROFILE_CHAR4_LEN] = {0x88};
+//    peripheralChar4Notify(notiData, SIMPLEPROFILE_CHAR4_LEN);
+//}
 
 /*********************************************************************
- * @fn      peripheralChar4Notify
+ * @fn      peripheralChar1Notify
  *
  * @brief   Prepare and send simpleProfileChar4 notification
  *
@@ -573,7 +580,7 @@ static void performPeriodicTask(void)
  *
  * @return  none
  */
-static void peripheralChar4Notify(uint8_t *pValue, uint16_t len)
+void peripheralChar1Notify(uint8_t *pValue, uint16_t len)
 {
     attHandleValueNoti_t noti;
     noti.len = len;

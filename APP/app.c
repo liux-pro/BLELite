@@ -9,6 +9,8 @@
 #define BLE_RECEIVE_BUFFER (256+1)
 #define BLE_SEND_BUFFER (256+1)
 void uart0_init();
+//ble notify
+void peripheralChar1Notify(uint8_t *pValue, uint16_t len);
 
 
 uint8_t ble_receive_buffer[BLE_RECEIVE_BUFFER]={0};
@@ -30,7 +32,8 @@ uint8_t* ble_get_send_buffer(){
  }
 // GAP - Advertisement data (max size = 31 bytes, though this is
 // best kept short to conserve power while advertisting)
-uint8_t advertData[31] = {
+// 广播数据，不能瞎改
+static uint8_t advertData[31] = {
     // Flags; this sets the device to use limited discoverable
     // mode (advertises for 30 seconds at a time) instead of general
     // discoverable mode (advertises indefinitely)
@@ -39,7 +42,23 @@ uint8_t advertData[31] = {
     GAP_ADTYPE_FLAGS_GENERAL | GAP_ADTYPE_FLAGS_BREDR_NOT_SUPPORTED,
 };
 
-
+// GAP - SCAN RSP data (max size = 31 bytes)
+// 广播回复数据
+static uint8_t scanRspData[31] = {
+    // complete name
+//    11, // length of this data
+//    GAP_ADTYPE_LOCAL_NAME_COMPLETE,
+//    'S',
+//    'u',
+//    'p',
+//    'e',
+//    'r',
+//    'C',
+//    'l',
+//    'o',
+//    'c',
+//    'k'
+};
 
 //uint16_t app_task_callback(uint8_t task_id, uint16_t events){
 //
@@ -55,14 +74,26 @@ uint8_t advertData[31] = {
 //
 //}
 
+//设置广播数据，设置的是厂商信息后面的自定义数据
 void ble_update_adv(uint8_t *p_data,uint16_t len){
     static uint8_t* p= &advertData[3];
     p[0]=len+3;
-    p[1]=0xff;
+    p[1]=GAP_ADTYPE_MANUFACTURER_SPECIFIC;  //类型是厂商信息
     p[2]=COMPANY_ID_LOW;
     p[3]=COMPANY_ID_HIGH;
-    memcpy(&p[4],p_data,len);
+    if (len!=0) {
+        memcpy(&p[4],p_data,len);
+    }
     GAP_UpdateAdvertisingData( 0,TRUE,len+4+3,advertData );
+}
+
+// 修改蓝牙名字
+void ble_update_name(uint8_t *p_name,uint16_t len){
+    scanRspData[0]=len+1;
+    scanRspData[1]=GAP_ADTYPE_LOCAL_NAME_COMPLETE;
+    memcpy(&scanRspData[2],p_name,len);
+    GAPRole_SetParameter(GAPROLE_SCAN_RSP_DATA, len+2, scanRspData);
+
 }
 
 void app_init(){
@@ -70,6 +101,8 @@ void app_init(){
 //    tmosTaskID my_id = TMOS_ProcessEventRegister(app_task_callback);
 //    tmos_start_task( my_id, HAL_TEST_EVENT, MS1_TO_SYSTEM_TIME( 100 ));
 
+
+    ble_update_name("BLELite", 7);
 
 
     uart0_init();
@@ -237,13 +270,29 @@ void TMR0_IRQHandler(void) // TMR0 定时中断
         if(calc_xor(ble_receive_buffer,ble_receive_count)==0){
             ble_received=true;
 
-            /*
-             * 收到后发修改广播
-             */
+
             uint8_t *p_data;
             uint16_t len;
+//            获取本次接收的所有数据
             uart0_get_data(&p_data,&len);
-            ble_update_adv(p_data,len);
+            /*
+            * 收到后发修改广播
+            */
+           if((len>=7) && (memcmp(p_data,"AT+RUOK",7)==0)){
+               uart0_send("AT+OK", 5);
+               return;
+           }
+           if((len>=7) && (memcmp(p_data,"AT+SADV",7)==0)){
+               ble_update_adv(p_data+7,len-7);
+               uart0_send("AT+OK", 5);
+               return;
+           }
+           if((len>=8) && (memcmp(p_data,"AT+SNAME",8)==0)){
+               ble_update_name(p_data+8, len-8);
+               uart0_send("AT+OK", 5);
+               return;
+           }
+            peripheralChar1Notify(p_data,len);
         }
     }
 }

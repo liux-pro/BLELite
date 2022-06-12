@@ -13,6 +13,7 @@
  */
 #include "CONFIG.h"
 #include "gattprofile.h"
+#include "app.h"
 
 /*********************************************************************
  * MACROS
@@ -77,14 +78,21 @@ static simpleProfileCBs_t *simpleProfile_AppCBs = NULL;
 // Simple Profile Service attribute
 static const gattAttrType_t simpleProfileService = {ATT_BT_UUID_SIZE, simpleProfileServUUID};
 
-// Simple Profile Characteristic 1 Properties
-static uint8_t simpleProfileChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
+// Simple Profile Characteristic 1 Properties 改1
+static uint8_t simpleProfileChar1Props = GATT_PROP_READ | GATT_PROP_WRITE | GATT_PROP_WRITE_NO_RSP | GATT_PROP_NOTIFY;
 
 // Characteristic 1 Value
 static uint8_t simpleProfileChar1[SIMPLEPROFILE_CHAR1_LEN] = {0};
 
 // Simple Profile Characteristic 1 User Description
-static uint8_t simpleProfileChar1UserDesp[] = "Characteristic 1\0";
+static uint8_t simpleProfileChar1UserDesp[] = "BLElite virtual UART\0";
+
+// Simple Profile Characteristic 4 Configuration Each client has its own
+// instantiation of the Client Characteristic Configuration. Reads of the
+// Client Characteristic Configuration only shows the configuration for
+// that client and writes only affect the configuration of that client.
+// 连上的每个设备都有一个自己变量记录着这个链接是否开启了notify，这里有4个应该就是因为这个，只要大于最大连接数就行吧
+static gattCharCfg_t simpleProfileChar1Config[4];
 
 // Simple Profile Characteristic 2 Properties
 static uint8_t simpleProfileChar2Props = GATT_PROP_READ;
@@ -130,7 +138,7 @@ static uint8_t simpleProfileChar5UserDesp[] = "Characteristic 5\0";
 
 /*********************************************************************
  * Profile Attributes - Table
- * 就往这个表里按顺序写就行了，先写service，然后接Characteristic（一个），接下来是Characteristic（0个或多个都行）
+ * 有啥服务和特性就往这个表里按顺序写就行了，先写service，然后接Characteristic（一个），接下来是Characteristic（0个或多个都行）
  * 然后写下一个Characteristic，以此类推
  */
 
@@ -138,7 +146,7 @@ static gattAttribute_t simpleProfileAttrTbl[] = {
         //定义一个服务
     // Simple Profile Service
     {
-        {ATT_BT_UUID_SIZE/* 这个service是16位UUID的 */, primaryServiceUUID/* 这个服务是主服务 */}, /* type */
+        {ATT_BT_UUID_SIZE/* 这个service是16位UUID的 */, primaryServiceUUID/* 标记这个服务是主服务 */}, /* type */
         GATT_PERMIT_READ,                       /* permissions */
         0,                                      /* handle */
         (uint8_t *)&simpleProfileService  /* 填入service uuid */       /* pValue */
@@ -163,98 +171,106 @@ static gattAttribute_t simpleProfileAttrTbl[] = {
         {ATT_BT_UUID_SIZE, charUserDescUUID/* 描述符类型，系统预定义的uuid，只能从那几个里选 */},
         GATT_PERMIT_READ,
         0,
-        simpleProfileChar2UserDesp},
+        simpleProfileChar1UserDesp},
 
-    // Characteristic 2 Declaration
-    {
-        {ATT_BT_UUID_SIZE, characterUUID},
-        GATT_PERMIT_READ,
-        0,
-        &simpleProfileChar2Props},
-
-    // Characteristic Value 2
-    {
-        {ATT_BT_UUID_SIZE, simpleProfilechar2UUID},
-        GATT_PERMIT_READ,
-        0,
-        simpleProfileChar2},
-
-    // Characteristic 2 User Description
-    {
-        {ATT_BT_UUID_SIZE, charUserDescUUID},
-        GATT_PERMIT_READ,
-        0,
-        simpleProfileChar2UserDesp},
-
-    // Characteristic 3 Declaration
-    {
-        {ATT_BT_UUID_SIZE, characterUUID},
-        GATT_PERMIT_READ,
-        0,
-        &simpleProfileChar3Props},
-
-    // Characteristic Value 3
-    {
-        {ATT_BT_UUID_SIZE, simpleProfilechar3UUID},
-        GATT_PERMIT_WRITE,
-        0,
-        simpleProfileChar3},
-
-    // Characteristic 3 User Description
-    {
-        {ATT_BT_UUID_SIZE, charUserDescUUID},
-        GATT_PERMIT_READ,
-        0,
-        simpleProfileChar3UserDesp},
-
-    // Characteristic 4 Declaration
-    {
-        {ATT_BT_UUID_SIZE, characterUUID},
-        GATT_PERMIT_READ,
-        0,
-        &simpleProfileChar4Props},
-
-    // Characteristic Value 4
-    {
-        {ATT_BT_UUID_SIZE, simpleProfilechar4UUID},
-        0,
-        0,
-        simpleProfileChar4},
-
-    // Characteristic 4 configuration
+    // Characteristic 1 configuration
+    // notify需要这个Descriptors，普通read write不需要，
     {
         {ATT_BT_UUID_SIZE, clientCharCfgUUID},
         GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0,
-        (uint8_t *)simpleProfileChar4Config},
-
-    // Characteristic 4 User Description
-    {
-        {ATT_BT_UUID_SIZE, charUserDescUUID},
-        GATT_PERMIT_READ,
-        0,
-        simpleProfileChar4UserDesp},
-
-    // Characteristic 5 Declaration
-    {
-        {ATT_BT_UUID_SIZE, characterUUID},
-        GATT_PERMIT_READ,
-        0,
-        &simpleProfileChar5Props},
-
-    // Characteristic Value 5
-    {
-        {ATT_BT_UUID_SIZE, simpleProfilechar5UUID},
-        GATT_PERMIT_AUTHEN_READ,
-        0,
-        simpleProfileChar5},
-
-    // Characteristic 5 User Description
-    {
-        {ATT_BT_UUID_SIZE, charUserDescUUID},
-        GATT_PERMIT_READ,
-        0,
-        simpleProfileChar5UserDesp},
+        (uint8_t *)simpleProfileChar1Config},
+//把示例里没用的删了。
+//    // Characteristic 2 Declaration
+//    {
+//        {ATT_BT_UUID_SIZE, characterUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        &simpleProfileChar2Props},
+//
+//    // Characteristic Value 2
+//    {
+//        {ATT_BT_UUID_SIZE, simpleProfilechar2UUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        simpleProfileChar2},
+//
+//    // Characteristic 2 User Description
+//    {
+//        {ATT_BT_UUID_SIZE, charUserDescUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        simpleProfileChar2UserDesp},
+//
+//    // Characteristic 3 Declaration
+//    {
+//        {ATT_BT_UUID_SIZE, characterUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        &simpleProfileChar3Props},
+//
+//    // Characteristic Value 3
+//    {
+//        {ATT_BT_UUID_SIZE, simpleProfilechar3UUID},
+//        GATT_PERMIT_WRITE,
+//        0,
+//        simpleProfileChar3},
+//
+//    // Characteristic 3 User Description
+//    {
+//        {ATT_BT_UUID_SIZE, charUserDescUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        simpleProfileChar3UserDesp},
+//
+//    // Characteristic 4 Declaration
+//    {
+//        {ATT_BT_UUID_SIZE, characterUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        &simpleProfileChar4Props},
+//
+//    // Characteristic Value 4
+//    {
+//        {ATT_BT_UUID_SIZE, simpleProfilechar4UUID},
+//        0,
+//        0,
+//        simpleProfileChar4},
+//
+//    // Characteristic 4 configuration
+//    {
+//        {ATT_BT_UUID_SIZE, clientCharCfgUUID},
+//        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+//        0,
+//        (uint8_t *)simpleProfileChar4Config},
+//
+//    // Characteristic 4 User Description
+//    {
+//        {ATT_BT_UUID_SIZE, charUserDescUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        simpleProfileChar4UserDesp},
+//
+//    // Characteristic 5 Declaration
+//    {
+//        {ATT_BT_UUID_SIZE, characterUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        &simpleProfileChar5Props},
+//
+//    // Characteristic Value 5
+//    {
+//        {ATT_BT_UUID_SIZE, simpleProfilechar5UUID},
+//        GATT_PERMIT_AUTHEN_READ,
+//        0,
+//        simpleProfileChar5},
+//
+//    // Characteristic 5 User Description
+//    {
+//        {ATT_BT_UUID_SIZE, charUserDescUUID},
+//        GATT_PERMIT_READ,
+//        0,
+//        simpleProfileChar5UserDesp},
 };
 
 /*********************************************************************
@@ -297,7 +313,7 @@ bStatus_t SimpleProfile_AddService(uint32_t services)
     uint8_t status = SUCCESS;
 
     // Initialize Client Characteristic Configuration attributes
-    GATTServApp_InitCharCfg(INVALID_CONNHANDLE, simpleProfileChar4Config);
+    GATTServApp_InitCharCfg(INVALID_CONNHANDLE, simpleProfileChar1Config);
 
     // Register with Link DB to receive link status change callback
     linkDB_Register(simpleProfile_HandleConnStatusCB);
@@ -479,13 +495,14 @@ bStatus_t SimpleProfile_GetParameter(uint8_t param, void *value)
  */
 bStatus_t simpleProfile_Notify(uint16_t connHandle, attHandleValueNoti_t *pNoti)
 {
-    uint16_t value = GATTServApp_ReadCharCfg(connHandle, simpleProfileChar4Config);
+    uint16_t value = GATTServApp_ReadCharCfg(connHandle, simpleProfileChar1Config);
 
     // If notifications enabled
     if(value & GATT_CLIENT_CFG_NOTIFY)
     {
         // Set the handle
-        pNoti->handle = simpleProfileAttrTbl[SIMPLEPROFILE_CHAR4_VALUE_POS].handle;
+        pNoti->handle = simpleProfileAttrTbl[2].handle;
+
 
         // Send the notification
         return GATT_Notification(connHandle, pNoti, FALSE);
@@ -610,7 +627,7 @@ static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle, gattAttribute_t 
         {
             case SIMPLEPROFILE_CHAR1_UUID:
                 //!!!!!!!!!!!!!!!!!!!!!!!!!!
-                UART1_SendString(pValue, len);
+                uart0_send(pValue, len);
 
 
                 //Validate the value
@@ -704,7 +721,7 @@ static void simpleProfile_HandleConnStatusCB(uint16_t connHandle, uint8_t change
            ((changeType == LINKDB_STATUS_UPDATE_STATEFLAGS) &&
             (!linkDB_Up(connHandle))))
         {
-            GATTServApp_InitCharCfg(connHandle, simpleProfileChar4Config);
+            GATTServApp_InitCharCfg(connHandle, simpleProfileChar1Config);
         }
     }
 }

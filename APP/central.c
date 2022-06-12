@@ -568,9 +568,10 @@ static void centralEventCB(gapRoleEvent_t *pEvent)
                         ble_get_send_buffer(), &len);
                 if (len!=0) {
                     uart0_send(ble_get_send_buffer(),len);
+                    //!!!!!!!
+//                    UART1_SendString(ble_get_send_buffer(),len);
                 }
 
-//                uart0_send('\n',1);
             }
 
 

@@ -22,4 +22,9 @@ uint8_t * ble_get_receive_buffer();
 uint8_t * ble_get_send_buffer();
 uint8_t calc_xor(uint8_t* data,uint16_t len);
 
+//设置广播数据，设置的是厂商信息后面的自定义数据
+void ble_update_adv(uint8_t *p_data,uint16_t len);
+// 修改蓝牙名字
+void ble_update_name(uint8_t *p_name,uint16_t len);
+
 #endif /* INCLUDE_APP_H_ */
