@@ -79,7 +79,18 @@ int main(void)
     Peripheral_Init();
     Central_Init();
 
-    ble_update_name("BLELite", 7);
+    uint8_t name_len=0;
+    EEPROM_READ(0, &name_len, 1);
+
+    //重新读取蓝牙名称
+    if (name_len==0 || name_len==0xff) {
+        ble_update_name("BLELite", 7);
+    }else {
+        uint8_t temp[20];
+        EEPROM_READ(1, temp, name_len);
+        ble_update_name(temp, name_len);
+    }
+
 
 //    {
 //        //广播模式设置为 不可连接，可获取回复包。因为连接和通讯代码还没看懂，暂时不让他连接，姑且使用广播通讯。

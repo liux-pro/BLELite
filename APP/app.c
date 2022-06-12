@@ -289,6 +289,10 @@ void TMR0_IRQHandler(void) // TMR0 ¶¨Ê±ÖÐ¶Ï
            }
            if((len>=8) && (memcmp(p_data,"AT+SNAME",8)==0)){
                ble_update_name(p_data+8, len-8);
+               uint8_t temp = len-8;
+               EEPROM_ERASE(0,21);
+               EEPROM_WRITE(0, &temp, 1);
+               EEPROM_WRITE(1, p_data+8, len-8);
                uart0_send("AT+OK", 5);
                return;
            }
