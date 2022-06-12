@@ -1,5 +1,5 @@
 # BLELite
-CH573或CH571蓝牙简单通信模块  
+基于CH573或CH571的蓝牙简单通信模块  
 模块自身设定为蓝牙从设备，默认名字为BLELite，只有一个Service，内含一个Characteristic，两者uuid均为`0xFF`  
 主机通过notify和write这个Characteristic，透传芯片上的串口。  
 同时监听附近的蓝牙广播，如果收到厂商id为`0xBABE`的广播，把其内容也透传到串口。
@@ -10,7 +10,7 @@ CH571K只需一个电容，一个32M晶振以及pcb天线即可工作。
 # PIN
 使用串口（115200）通讯
 
-| PIN | CH571K或CH573K | 
+| PIN | CH571K或CH573F | 
 | :----: | :----: | 
 | TXD |  PA14| 
 | RXD | PA15 | 
@@ -32,3 +32,7 @@ CH571K只需一个电容，一个32M晶振以及pcb天线即可工作。
 | 检查是否正常运行 | AT+RUOK |  AT+OK|  | 
 | 修改蓝牙名字| AT+SNAME | AT+OK | 把蓝牙名字设置为abc：`AT+SNAMEabc` | 
 | 设置蓝牙广播| AT+SADV | AT+OK |  | 
+# TODO 
+完善原理图电路
+自动构建  
+在线定制固件
