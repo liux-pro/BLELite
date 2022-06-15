@@ -1,6 +1,6 @@
 # BLELite
 基于CH573或CH571的蓝牙简单通信模块  
-模块自身设定为蓝牙从设备，默认名字为BLELite，只有一个Service，内含一个Characteristic，两者uuid均为`0xFF`  
+模块自身设定为蓝牙从设备，默认名字为BLELite，只有一个Service，内含一个Characteristic，两者uuid均为`0xFFFF`  
 主机通过notify和write这个Characteristic，透传芯片上的串口。  
 同时监听附近的蓝牙广播，如果收到厂商id为`0xBABE`的广播，把其内容也透传到串口。
 
